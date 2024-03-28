@@ -7,11 +7,11 @@ test.use({ viewport: { width: 500, height: 500 } })
 test('mint tick', async ({ mount }) => {
   const component = await mount(<MintStory />)
 
-  const moveTickInscriptionId = '75e95eeba0b3450feda8d880efe00600816e5934160a4757fbdaa99a0e3bb436i0'
+  const moveTickInscriptionId = 'a7609439af50e9165bc0d63aa3808ce078e736238313064210b5c8ab7dbab122i0'
 
   // Input the InscriptionID
   await component.locator('input[placeholder="TickDeployID"]').fill(moveTickInscriptionId)
-  await component.locator('input[placeholder="UserInput"]').fill('20240306')
+  await component.locator('input[placeholder="UserInput"]').fill('20240329')
 
   // Click the mint button
   await component.locator('button:has-text("Mint")').click()

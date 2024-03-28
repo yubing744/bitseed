@@ -7,7 +7,7 @@ test.use({ viewport: { width: 500, height: 500 } })
 test('Deploy move tick with simple generator', async ({ mount }) => {
   const component = await mount(<DeployStory />)
 
-  const generatorInscriptionId = '6f55475ce65054aa8371d618d217da8c9a764cecdaf4debcbce8d6312fe6b4d8i0'
+  const generatorInscriptionId = '94748c841cac6fd305bbbf797a8f79a891fec5a0667dd80e3aa8e74afdd9a42bi0'
   const deployArg = `{"height":{"type":"range","data":{"min":1,"max":1000}}}`
 
   // Input the InscriptionID

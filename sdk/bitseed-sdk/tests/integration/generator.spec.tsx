@@ -14,7 +14,7 @@ test('Deploy generator', async ({ mount }) => {
   // Upload generator wasm file
   await component
     .locator('input[placeholder="wasmFile"]')
-    .setInputFiles(path.join(__dirname, '../data/generator.wasm'))
+    .setInputFiles(path.join(__dirname, '../data/generator-cpp.wasm'))
 
   // Click the deploy button
   await component.locator('button:has-text("Deploy")').click()

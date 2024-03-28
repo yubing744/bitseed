@@ -33,7 +33,7 @@ export default function MintStory() {
         fee_rate: 1,
         satpoint: {
           outpoint: {
-            txid: '42d186a5d9bc064e5704024afb2dfccd424da1b9756ae31a4fbfee22f4fc7ec5',
+            txid: 'a7609439af50e9165bc0d63aa3808ce078e736238313064210b5c8ab7dbab122',
             vout: 0
           },
           offset: 0
