@@ -1141,15 +1141,14 @@ impl Inscriber {
     }
 
     fn boardcaset_tx(&self, ctx: &mut InscribeContext) -> Result<InscribeOutput> {
-        let bitcoin_client = self.wallet.bitcoin_client()?;
-        let commit_txid = match bitcoin_client.send_raw_transaction(&ctx.signed_commit_tx_hex) {
+        let commit_txid = match self.wallet.send_raw_transaction_v2(&ctx.signed_commit_tx_hex, None, Some(20000.0)) {
             Ok(txid) => txid,
             Err(err) => {
               return Err(anyhow!("Failed to send commit transaction: {err}"))
             }
         };
 
-        let reveal_txid = match bitcoin_client.send_raw_transaction(&ctx.signed_reveal_tx_hex) {
+        let reveal_txid = match self.wallet.send_raw_transaction_v2(&ctx.signed_reveal_tx_hex, None, Some(20000.0)) {
             Ok(txid) => txid,
             Err(err) => {
                 return Err(anyhow!(
