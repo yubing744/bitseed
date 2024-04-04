@@ -103,8 +103,7 @@ pub struct InscribeContext {
 
     pub utxos: BTreeMap<OutPoint, TxOut>,
     pub reveal_scripts_to_sign: Vec<ScriptBuf>,
-    pub control_blocks_to_sign: Vec<ControlBlock>,
-    pub commit_input_start_index: Option<usize>,
+    pub control_blocks_to_sign: Vec<ControlBlock>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -288,8 +287,8 @@ impl Inscriber {
         let mut sft_to_merge = Vec::new();
         let mut result = self;
     
-        for inscription_id in sft_inscription_ids {
-            let operation = result.wallet.get_operation_by_inscription_id(inscription_id)?;
+        for (index, inscription_id) in sft_inscription_ids.iter().enumerate() {
+            let operation = result.wallet.get_operation_by_inscription_id(inscription_id.clone())?;
             let sft = match operation {
                 Operation::Mint(mint_record) => mint_record.sft(),
                 Operation::Split(split_record) => split_record.sft(),
@@ -297,8 +296,9 @@ impl Inscriber {
                 _ => bail!("Inscription {} is not a minted SFT", inscription_id),
             };
     
+            let amount = sft.amount;
             sft_to_merge.push(sft);
-            result = result.with_burn(inscription_id, "merge_SFT".to_string());
+            result = result.with_burn(*inscription_id, format!("{} at {}", amount, index));
         }
     
         let mut merged_sft = sft_to_merge[0].clone();
@@ -786,12 +786,12 @@ impl Inscriber {
         control_blocks: &Vec<ControlBlock>,
     ) -> u64 {
         let mut reveal_tx = ctx.reveal_tx.clone();
-        let commit_input_start_index = ctx.commit_input_start_index.unwrap_or(0);
+        let reveal_inscription_count = ctx.commit_tx_addresses.len();
     
         for (current_index, txin) in reveal_tx.input.iter_mut().enumerate() {
-            if current_index >= commit_input_start_index {
-                let reveal_script = &reveal_scripts[current_index - commit_input_start_index];
-                let control_block = &control_blocks[current_index - commit_input_start_index];
+            if current_index < reveal_inscription_count {
+                let reveal_script = &reveal_scripts[current_index];
+                let control_block = &control_blocks[current_index];
     
                 txin.witness.push(
                     Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
@@ -876,7 +876,6 @@ impl Inscriber {
             utxos,
             reveal_scripts_to_sign: Vec::new(),
             control_blocks_to_sign: Vec::new(),
-            commit_input_start_index: None,
         })
     }
 
@@ -918,31 +917,7 @@ impl Inscriber {
     }
 
     fn build_revert(&self, ctx: &mut InscribeContext) -> Result<()> {
-        // Process the logic of inscription destruction
-        for inscription_to_burn in &self.inscriptions_to_burn {
-            let inscription_id = inscription_to_burn.inscription_id;
-            let satpoint = self.wallet.get_inscription_satpoint_v2(inscription_id)?;
-            let input = TxIn {
-                previous_output: satpoint.outpoint,
-                script_sig: ScriptBuf::new(),
-                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
-                witness: Witness::new(),
-            };
-            ctx.reveal_tx.input.push(input);
-    
-            let message_bytes = inscription_to_burn.message.clone().into_bytes();
-            let msg_push_bytes = script::PushBytesBuf::try_from(message_bytes).expect("burn message should fit");
-            let script = ScriptBuf::new_op_return(&msg_push_bytes);
-            let output = TxOut {
-                script_pubkey: script,
-                value: 0,
-            };
-            ctx.reveal_tx.output.push(output);
-        }
-
         // Process the logic of inscription revelation
-        let commit_input_start_index = ctx.reveal_tx.input.len();
-
         for (index, ((_, control_block), reveal_script)) in ctx
             .commit_tx_addresses
             .iter()
@@ -975,8 +950,33 @@ impl Inscriber {
             ctx.control_blocks_to_sign.push(control_block.clone());
         }
 
-        // Set the commit input index in the context
-        ctx.commit_input_start_index = Some(commit_input_start_index);
+        // Process the logic of inscription destruction
+        let mut total_burn_postage = 0;
+
+        for inscription_to_burn in &self.inscriptions_to_burn {
+            let inscription_id = inscription_to_burn.inscription_id;
+            let satpoint = self.wallet.get_inscription_satpoint_v2(inscription_id)?;
+            let input = TxIn {
+                previous_output: satpoint.outpoint,
+                script_sig: ScriptBuf::new(),
+                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+                witness: Witness::new(),
+            };
+            ctx.reveal_tx.input.push(input);
+
+            let inscription_output = ctx.utxos.get(&satpoint.outpoint).expect("inscription utxo not found");
+            total_burn_postage += inscription_output.value;
+        }
+
+        let msg = b"bitseed".to_vec();
+        let msg_push_bytes = script::PushBytesBuf::try_from(msg.clone()).expect("burn message should fit");
+    
+        let script = ScriptBuf::new_op_return(&msg_push_bytes);
+        let output = TxOut {
+            script_pubkey: script,
+            value: total_burn_postage,
+        };
+        ctx.reveal_tx.output.push(output);
 
         Ok(())
     }
@@ -987,50 +987,7 @@ impl Inscriber {
         let actual_reveal_fee = self.estimate_reveal_tx_fee(ctx, &ctx.reveal_scripts, &ctx.control_blocks);
         let total_new_postage = self.option.postage().to_sat() * self.inscriptions.len() as u64;
     
-        let mut total_burn_postage = 0;
-        for inscription_to_burn in &self.inscriptions_to_burn {
-            let inscription_id = inscription_to_burn.inscription_id;
-            let inscription_satpoint = self.wallet.get_inscription_satpoint_v2(inscription_id)?;
-            let inscription_output = ctx.utxos.get(&inscription_satpoint.outpoint).expect("inscription utxo not found");
-            total_burn_postage += inscription_output.value;
-        }
-    
-        let mut reveal_additional_fee = 0;
-        let mut reveal_change_value = 0;
-
-        if total_burn_postage < actual_reveal_fee + total_new_postage {
-            reveal_additional_fee = actual_reveal_fee + total_new_postage - total_burn_postage;
-        } else {
-            reveal_change_value = total_burn_postage - actual_reveal_fee - total_new_postage;
-
-            for output in ctx.commit_tx.output.iter_mut() {
-                reveal_change_value += output.value
-            }
-        }
-    
-        if reveal_change_value > dust_threshold {
-            let change_output = TxOut {
-                script_pubkey: self.wallet.get_change_address()?.script_pubkey(),
-                value: reveal_change_value,
-            };
-            ctx.reveal_tx.output.push(change_output);
-    
-            // Recalculate the actual reveal fee, considering the impact of the change output
-            let new_reveal_fee = self.estimate_reveal_tx_fee(ctx, &ctx.reveal_scripts, &ctx.control_blocks);
-    
-            // Adjust the change amount to compensate for the fee change
-            let fee_difference = new_reveal_fee - actual_reveal_fee;
-            reveal_change_value -= fee_difference;
-    
-            if reveal_change_value <= dust_threshold {
-                // If the adjusted change amount is less than or equal to the dust threshold, remove the change output
-                ctx.reveal_tx.output.pop();
-            } else {
-                // Update the amount of the change output
-                ctx.reveal_tx.output.last_mut().unwrap().value = reveal_change_value;
-            }
-        }
-
+        let reveal_additional_fee = actual_reveal_fee + total_new_postage;
         if reveal_additional_fee > 0 {
             let mut remaining_fee = reveal_additional_fee;
 
@@ -1084,8 +1041,10 @@ impl Inscriber {
 
         // Update the reveal transaction inputs to reference the new commit transaction outputs
         let new_commit_txid = ctx.commit_tx.txid();
+        let reveal_inscription_count = ctx.commit_tx_addresses.len();
+
         for (index, input) in ctx.reveal_tx.input.iter_mut().enumerate() {
-            if index >= ctx.commit_input_start_index.unwrap() {
+            if index < reveal_inscription_count {
                 input.previous_output.txid = new_commit_txid;
                 
                 ctx.utxos.insert(
@@ -1111,8 +1070,6 @@ impl Inscriber {
             .hex;
 
         // Sign the inputs for inscription revelation
-        let commit_input_start_index = ctx.commit_input_start_index.unwrap();
-
         let prevouts: Vec<_> = ctx.reveal_tx.input.iter()
             .map(|tx_in| ctx.utxos.get(&tx_in.previous_output).clone().expect("prevout not found"))
             .collect();
@@ -1127,7 +1084,7 @@ impl Inscriber {
         {
             let sighash = sighash_cache
                 .taproot_script_spend_signature_hash(
-                    commit_input_start_index + index,
+                    index,
                     &Prevouts::All(&prevouts),
                     TapLeafHash::from_script(reveal_script, LeafVersion::TapScript),
                     TapSighashType::Default,
@@ -1139,7 +1096,7 @@ impl Inscriber {
             let sig = secp.sign_schnorr(&message, &keypair);
 
             let witness = sighash_cache
-                .witness_mut(commit_input_start_index + index)
+                .witness_mut(index)
                 .expect("getting mutable witness reference should work");
 
             witness.push(

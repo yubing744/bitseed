@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use testcontainers::{core::WaitFor, Image, ImageArgs};
 
 const NAME: &str = "lncm/bitcoind";
-const TAG: &str = "v25.1";
+const TAG: &str = "v26.0";
 
 #[derive(Debug, Default, Clone)]
 pub struct BitcoindImageArgs {
