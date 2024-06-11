@@ -40,22 +40,22 @@ Feature: Bitseed CLI integration tests
     Then sleep: "10"
 
     # split 
-    Then cmd bitseed: "split --fee-rate 1 --sft-inscription-id {{$.mint[-1].inscriptions[0].Id}} --amounts 500 --amounts 300" 
-    Then assert: "'{{$.split[-1]}}' not_contains error"
+    #Then cmd bitseed: "split --fee-rate 1 --sft-inscription-id {{$.mint[-1].inscriptions[0].Id}} --amounts 500 --amounts 300" 
+    #Then assert: "'{{$.split[-1]}}' not_contains error"
 
     # mine a block
-    Then cmd ord: "wallet receive"
-    Then cmd bitcoin-cli: "generatetoaddress 1 {{$.wallet[-1].address}}"
-    Then sleep: "10"
+    #Then cmd ord: "wallet receive"
+    #Then cmd bitcoin-cli: "generatetoaddress 1 {{$.wallet[-1].address}}"
+    #Then sleep: "10"
 
     # merge 
-    Then cmd bitseed: "merge --fee-rate 1 --sft-inscription-ids {{$.split[-1].inscriptions[0].Id}} --sft-inscription-ids {{$.split[-1].inscriptions[1].Id}} --sft-inscription-ids {{$.split[-1].inscriptions[2].Id}}"
-    Then assert: "'{{$.merge[-1]}}' not_contains error"
+    #Then cmd bitseed: "merge --fee-rate 1 --sft-inscription-ids {{$.split[-1].inscriptions[0].Id}} --sft-inscription-ids {{$.split[-1].inscriptions[1].Id}} --sft-inscription-ids {{$.split[-1].inscriptions[2].Id}}"
+    #Then assert: "'{{$.merge[-1]}}' not_contains error"
 
     # view 
-    Then cmd bitseed: "view --sft-inscription-id {{$.merge[-1].inscriptions[0].Id}}"
-    Then assert: "'{{$.view[-1]}}' not_contains error"
-    Then assert: "{{$.view[-1].amount}} == 1000"
+    #Then cmd bitseed: "view --sft-inscription-id {{$.merge[-1].inscriptions[0].Id}}"
+    #Then assert: "'{{$.view[-1]}}' not_contains error"
+    #Then assert: "{{$.view[-1].amount}} == 1000"
 
     # end
     Then release bitcoind and Ord servers

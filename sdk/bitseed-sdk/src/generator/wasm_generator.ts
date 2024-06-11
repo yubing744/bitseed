@@ -18,12 +18,14 @@ export class WasmGenerator implements IGenerator {
   ): Promise<SFTRecord> {
     // Convert deployArgs to a CBOR bytes
     const argsBytes = new Uint8Array(cbor.encodeOne(deployArgs.map((json)=>JSON.parse(json))))
-
+    console.log("argsBytes:", Buffer.from(argsBytes).toString('hex'))
     const input = {
       "seed": seed.seed(),
       "user_input": userInput,
       "attrs": Array.from(argsBytes),
     }
+
+    console.log("input:", input)
 
     // Get the memory of the WASM instance
     const memory = this.wasmInstance.exports.memory as WebAssembly.Memory
@@ -31,6 +33,8 @@ export class WasmGenerator implements IGenerator {
     // Allocate memory and write string data
     const encodeInputOnStack = (input: object, memory: WebAssembly.Memory) => {
       const encodedBuffer = cbor.encodeOne(input)
+      console.log("encodedBuffer:", Buffer.from(encodedBuffer).toString('hex'))
+
       const len = encodedBuffer.length
 
       const stackAllocFunction = this.wasmInstance.exports.stackAlloc as CallableFunction

@@ -48,7 +48,9 @@ function getEnvelopeMetadata(data: EnvelopeData[]) {
   }
 
   try {
-    return cbor.decodeFirstSync(Buffer.concat(content));
+    const buf = Buffer.concat(content);
+    console.log("metadata buf:", buf.toString("hex"));
+    return cbor.decodeFirstSync(buf);
   } catch (err) {
     return undefined;
   }

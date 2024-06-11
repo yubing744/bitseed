@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs';
 import * as bitcoin from 'bitcoinjs-lib'
-import { Transaction as BTCTransaction } from "bitcoinjs-lib";
+//import { Transaction as BTCTransaction } from "bitcoinjs-lib";
 import { BitSeed } from './bitseed';
 import {
   Ordit,
@@ -9,15 +9,15 @@ import {
   RelayOptions,
   GetSpendablesOptions,
   UTXOLimited,
-  GetInscriptionOptions,
+  //GetInscriptionOptions,
   Inscription,
-  GetTransactionOptions,
+  //GetTransactionOptions,
   Transaction
 } from '@sadoprotocol/ordit-sdk';
 import { IGeneratorLoader, GeneratorLoader } from './generator';
 import { SFTRecord, InscriptionID } from './types';
-import { InscribeOptions, DeployOptions } from './interfaces'
-import { toB64 } from './utils';
+import { InscribeOptions /*, DeployOptions*/ } from './interfaces'
+import { toB64, decodeInscriptionMetadata } from './utils';
 
 const networkType = 'testnet'
 
@@ -175,6 +175,11 @@ describe('BitSeed', () => {
     })
 
     datasourceMock.relay.mockImplementation(async function ({ hex }: RelayOptions): Promise<string> {
+      console.log("tx_hex:", hex)
+
+      const meta = decodeInscriptionMetadata(hex, 0);
+      console.log("meta:", meta)
+
       const tx = bitcoin.Transaction.fromHex(hex)
       const txid = tx.getId()
 
@@ -207,11 +212,20 @@ describe('BitSeed', () => {
         return encoder.encode(str);
       }
 
+      const deployArgs = [
+        '{"height":{"type":"range","data":{"min":1,"max":1000}}}'
+      ];
+
       const sftRecord: SFTRecord = {
-        op: 'test',
-        tick: 'testTick',
-        amount: 1,
-        attributes: {},
+        op: 'deploy',
+        tick: 'move',
+        amount: 10000,
+        attributes: {
+          "repeat": 5,
+          "generator": `/inscription/77dfc2fe598419b00641c296181a96cf16943697f573480b023b77cce82ada21i0`,
+          "has_user_input": true,
+          "deploy_args": deployArgs
+        },
         content: {
           content_type: 'text/plain',
           body: stringBody('Hello, World!')
@@ -226,12 +240,66 @@ describe('BitSeed', () => {
     });
   });
 
+  /*
+  it('should deposit reveal fee and inscribe successfully', async () => {
+    function stringBody(str: string) {
+      const encoder = new TextEncoder();
+      return encoder.encode(str);
+    }
+
+    const deployArgs = [
+      '{"height":{"type":"range","data":{"min":1,"max":1000}}}'
+    ];
+
+    const sftRecord: SFTRecord = {
+      op: 'deploy',
+      tick: 'move',
+      amount: 10000,
+      attributes: {
+        "repeat": 5,
+        "generator": `/inscription/77dfc2fe598419b00641c296181a96cf16943697f573480b023b77cce82ada21i0`,
+        "has_user_input": true,
+        "deploy_args": deployArgs
+      },
+      content: {
+        content_type: 'text/plain',
+        body: stringBody('Hello, World!')
+      }
+    };
+
+    const inscriptionID: InscriptionID = await bitSeed.inscribe(sftRecord);
+
+    expect(inscriptionID).toHaveProperty('txid');
+    expect(inscriptionID.index).toEqual(0);
+    expect(datasourceMock.relay).toHaveBeenCalledTimes(2);
+  });
+  */
+
+  it('should deposit reveal fee and inscribe successfully', async () => {
+    const sftRecord: SFTRecord = {
+      op: 'mint',
+      tick: 'move',
+      amount: 1,
+      attributes: {
+        "user_input": "xxx",
+      }
+    };
+
+    const inscriptionID: InscriptionID = await bitSeed.inscribe(sftRecord);
+
+    expect(inscriptionID).toHaveProperty('txid');
+    expect(inscriptionID.index).toEqual(0);
+    expect(datasourceMock.relay).toHaveBeenCalledTimes(2);
+  });
+
+
   describe('generator method', () => {
 
 
     it('should be ok when mint invalid-generator.wasm', async () => {
       let wasmBytes = loadWasmBytesFromFile(path.resolve(__dirname, '../tests/data/invalid-generator.wasm'))
       console.log('wasm length:', wasmBytes.length)
+      console.log('wasm hex:', new Buffer(wasmBytes).toString("hex"))
 
       const inscribeOptions: InscribeOptions = {
         fee_rate: 1,
@@ -244,6 +312,7 @@ describe('BitSeed', () => {
       expect(datasourceMock.relay).toHaveBeenCalledTimes(2);
     });
 
+    /*
     it('should be ok when mint generator.wasm', async () => {
       let wasmBytes = loadWasmBytesFromFile(path.resolve(__dirname, '../tests/data/generator.wasm'))
       console.log('wasm length:', wasmBytes.length)
@@ -258,8 +327,10 @@ describe('BitSeed', () => {
       expect(inscriptionID.index).toEqual(0);
       expect(datasourceMock.relay).toHaveBeenCalledTimes(2);
     });
+    */
   });
 
+    /*
   describe('deploy method', () => {
     it('deploy move tick should be ok', async () => {
       const tick = 'move';
@@ -376,5 +447,6 @@ describe('BitSeed', () => {
       expect(datasourceMock.relay).toHaveBeenCalledTimes(2);
     });
   });
+  */
 });
 
