@@ -15,6 +15,7 @@ use testcontainers::{clients::Cli, core::{ WaitFor, Container, ExecCommand}, Run
 use tracing::{Level, error, debug, info};
 use tracing_subscriber;
 use bitseed::BitseedCli;
+use std::backtrace::Backtrace;
 
 use uuid::Uuid;
 use images::bitcoin::BitcoinD;
@@ -347,11 +348,11 @@ async fn bitseed_run_cmd(w: &mut World, input_tpl: String) {
             Ok(ret) => tx.send(ret).unwrap(),
             Err(panic_info) => {
                 let err_msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
-                    format!("Thread panicked with message: {}", s)
+                    format!("Thread panicked with message: {}\nBacktrace:\n{:?}", s, Backtrace::force_capture())
                 } else if let Some(s) = panic_info.downcast_ref::<String>() {
-                    format!("Thread panicked with message: {}", s)
+                    format!("Thread panicked with message: {}\nBacktrace:\n{:?}", s, Backtrace::force_capture())
                 } else {
-                    "Thread panicked with unknown message".to_string()
+                    format!("Thread panicked with unknown message\nBacktrace:\n{:?}", Backtrace::force_capture())
                 };
                 tx.send(Err(anyhow::anyhow!(err_msg))).unwrap();
             }
